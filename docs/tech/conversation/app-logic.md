@@ -249,3 +249,45 @@ logic.
 ]
 ```
 
+## Users that leave the WeNet platform 
+
+When you define the logic of an application you have to be aware that any user can remove their account
+at any moment. When this happens any data associated with this removed user will be eliminated from
+the WeNet platform. After that, any norm that refers to this user will fail because
+can not get its data. So, if you write a norm that forces someone to do a transaction to allow 
+the application to continue you must define also a timer event that can do this action for 
+the worst-case scenario when this user will remove their account.
+
+For example imagine that you define a protocol that simulates an auction that after a person 
+won a bid, it has to pay and you do not start a new auction after this happens. If the winner
+removes their account after winning the bid and before paying you protocol will not be allowed
+to continue. What you may be is start a timer when notifying the winner that considered a withdrawal
+if the winner does not pay it in 3 minutes. As you can see in the next norms example:
+
+
+```json
+[
+	{
+		"description": "Notify all the users of the winner",
+		"whenever": "is_received_do_transaction('theWinnerIs',Winner) and get_task_state_attribute(Users,'participants')",
+		"thenceforth": "add_created_transaction() and send_messages(Users,'notifyBidWinner',Winner) and send_event(_,180,'notifyWinnerHasNotPaid',json([])) and put_task_state_attribute('winner',Winner)"
+	},
+	{
+		"description": "Received time user if it can help",
+		"whenever": "is_received_event('sortUsersByDiversity',_) and get_task_state_attribute(Winner,'winner') and not(is_null(Winner)) and get_task_state_attribute(Users,'participants')",
+		"thenceforth": "send_messages(Users,'notifyWithdrawWinner',Winner) and put_task_state_attribute('winner',@(null))"
+	},
+	{
+		"description": "Pay the won bid",
+		"whenever": "is_received_do_transaction('pay',PayMethod) and get_task_requester_id(RequesterId)",
+		"thenceforth": "add_message_transaction() and send_message(RequesterId,'notifyPayment',PayMethod)"
+	},
+	{
+		"description": "Received the paid of a method",
+		"whenever": "is_received(_,'notifyPayment',PayMethod) and get_sender_Id(SenderId) and get_task_state_attribute([userId=SenderId],'winner')",
+		"thenceforth": "send_user_message('winnerPaid',PayMethod) and put_task_state_attribute('winner',@(null))"
+	}
+]
+```
+
+
